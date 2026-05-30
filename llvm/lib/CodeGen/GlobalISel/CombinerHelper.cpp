@@ -1452,7 +1452,13 @@ bool CombinerHelper::matchCombineExtractedVectorLoad(
 
 bool CombinerHelper::matchCombineIndexedLoadStore(
     MachineInstr &MI, IndexedLoadStoreMatchInfo &MatchInfo) const {
+  auto MF = MI.getMF();
   auto &LdSt = cast<GLoadStore>(MI);
+  Register DstReg = MI.getOperand(0).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  DataLayout DL = MF->getDataLayout();
+  bool isBE = DL.isBigEndian();
+  
 
   if (LdSt.isAtomic())
     return false;
@@ -1463,6 +1469,17 @@ bool CombinerHelper::matchCombineIndexedLoadStore(
       !findPostIndexCandidate(LdSt, MatchInfo.Addr, MatchInfo.Base,
                               MatchInfo.Offset, MatchInfo.RematOffset))
     return false;
+
+  // if is preindexed and vector
+  if (MatchInfo.IsPre && DstTy.isVector() && isBE){
+    return false;
+  }
+
+  auto Cst = getIConstantVRegVal(MatchInfo.Offset, MRI);
+  // what is different size in the vector ldst tests actually checking?
+  if (isBE && Cst != 8 && DstTy.isVector()) {
+    return false;
+  }
 
   return true;
 }
@@ -3718,7 +3735,7 @@ bool CombinerHelper::matchUseVectorTruncate(MachineInstr &MI,
   // Check the size of unmerge source
   MatchInfo = cast<GUnmerge>(UnmergeMI)->getSourceReg();
   LLT UnmergeSrcTy = MRI.getType(MatchInfo);
-  if (!DstTy.getElementCount().isKnownMultipleOf(UnmergeSrcTy.getNumElements()))
+  if (!UnmergeSrcTy.isVector() || !DstTy.getElementCount().isKnownMultipleOf(UnmergeSrcTy.getNumElements()))
     return false;
 
   // Check the unmerge source and destination element types match

@@ -372,8 +372,9 @@ mergeVectorRegsToResultRegs(MachineIRBuilder &B, ArrayRef<Register> DstRegs,
   for (size_t I = DstRegs.size(); I != NumDst; ++I)
     PadDstRegs[I] = MRI.createGenericVirtualRegister(LLTy);
 
-  if (PartLLT != LCMTy)
+  if (PartLLT != LCMTy) {
     UnmergeSrcReg = B.buildBitcast(LCMTy, UnmergeSrcReg).getReg(0);
+  }
 
   if (PadDstRegs.size() == 1)
     return B.buildDeleteTrailingVectorElements(DstRegs[0], UnmergeSrcReg);
@@ -393,11 +394,18 @@ void CallLowering::buildCopyFromRegs(MachineIRBuilder &B,
     return;
   }
 
+
+  //assert(OrigRegs.size() == 1);
+  //assert(PartLLT != LLT::vector(ElementCount::getFixed(4), 16));
   if (PartLLT.getSizeInBits() == LLTy.getSizeInBits() && OrigRegs.size() == 1 &&
       Regs.size() == 1) {
+    //assert(PartLLT != LLT::vector(ElementCount::getFixed(4), 16));
+    // assert(false && "c");
     B.buildBitcast(OrigRegs[0], Regs[0]);
     return;
   }
+
+  //assert(false);
 
   // A vector PartLLT needs extending to LLTy's element size.
   // E.g. <2 x s64> = G_SEXT <2 x s32>.
@@ -471,8 +479,9 @@ void CallLowering::buildCopyFromRegs(MachineIRBuilder &B,
       // We are both splitting a vector, and bitcasting its element types. Cast
       // the source pieces into the appropriate number of pieces with the result
       // element type.
-      for (Register SrcReg : CastRegs)
+      for (Register SrcReg : CastRegs) {
         CastRegs[I++] = B.buildBitcast(GCDTy, SrcReg).getReg(0);
+      }
       mergeVectorRegsToResultRegs(B, OrigRegs, CastRegs);
     }
 
@@ -537,14 +546,27 @@ void CallLowering::buildCopyFromRegs(MachineIRBuilder &B,
 
       // Input registers contain packed elements.
       // Determine how many elements per reg.
-      assert((SrcEltTy.getSizeInBits() % OriginalEltTy.getSizeInBits()) == 0);
-      unsigned EltPerReg =
-          (SrcEltTy.getSizeInBits() / OriginalEltTy.getSizeInBits());
+
+      // This can be cleaned up
+      LLT medTy;
+      unsigned EltPerReg;
+      if ((SrcEltTy.getSizeInBits() % OriginalEltTy.getSizeInBits()) != 0 && 
+            Log2_32(OriginalEltTy.getSizeInBits()) != Log2_32_Ceil(OriginalEltTy.getSizeInBits())) {
+        unsigned extEltSize = PowerOf2Ceil(OriginalEltTy.getSizeInBits());
+        assert(extEltSize == 8);
+        EltPerReg = (SrcEltTy.getSizeInBits() / extEltSize);
+        medTy = LLT::scalar(PowerOf2Ceil(OriginalEltTy.getSizeInBits()));
+      } else {
+        assert((SrcEltTy.getSizeInBits() % OriginalEltTy.getSizeInBits()) == 0);
+        EltPerReg = (SrcEltTy.getSizeInBits() / OriginalEltTy.getSizeInBits());
+
+        medTy = OriginalEltTy;
+      }
 
       SmallVector<Register, 0> BVRegs;
       BVRegs.reserve(Regs.size() * EltPerReg);
       for (Register R : Regs) {
-        auto Unmerge = B.buildUnmerge(OriginalEltTy, R);
+        auto Unmerge = B.buildUnmerge(medTy, R);
         for (unsigned K = 0; K < EltPerReg; ++K)
           BVRegs.push_back(B.buildAnyExt(PartLLT, Unmerge.getReg(K)).getReg(0));
       }
@@ -867,6 +889,16 @@ bool CallLowering::handleAssignments(ValueHandler &Handler,
       CCValAssign &VA = ArgLocs[j + Idx];
       const ISD::ArgFlagsTy Flags = Args[i].Flags[Part];
 
+      // assert(LocTy != LLT::scalar(64));
+
+      // I really don't know if this is the area for them?
+      if (VA.getLocInfo() == CCValAssign::BCvt && !Handler.isIncomingArgumentHandler() /*&& DL.isBigEndian()*/) {
+        if (LocTy != OrigTy && LocTy.getSizeInBits() == OrigTy.getSizeInBits()) {
+          Register Cast = MIRBuilder.buildBitcast(LocTy, Args[i].OrigRegs[0]).getReg(0);
+          ArgReg = Cast;
+        }
+      }
+
       // We found an indirect parameter passing, and we have an
       // OutgoingValueHandler as our handler (so we are at the call site or the
       // return value). In this case, start the construction of the following
@@ -967,8 +999,24 @@ bool CallLowering::handleAssignments(ValueHandler &Handler,
                  isTypeIsValidForThisReturn(ValVT)) {
         Handler.assignValueToReg(ArgReg, ThisReturnRegs[Part], VA, Flags);
       } else if (Handler.isIncomingArgumentHandler()) {
+        // HERE
+        // // I really don't know if this is the area for them?
+        // if (VA.getLocInfo() == CCValAssign::BCvt && DL.isBigEndian()) {
+        //   if (LocTy != OrigTy && LocTy.getSizeInBits() == OrigTy.getSizeInBits()) {
+        //     Register Cast = MIRBuilder.buildBitcast(LocTy, Args[i].OrigRegs[0]).getReg(0);
+        //     ArgReg = Cast;
+        //   }
+        // }
         Handler.assignValueToReg(ArgReg, VA.getLocReg(), VA, Flags);
       } else {
+        //assert(false && "c");
+        // // I really don't know if this is the area for them?
+        // if (VA.getLocInfo() == CCValAssign::BCvt && DL.isBigEndian()) {
+        //   if (LocTy != OrigTy && LocTy.getSizeInBits() == OrigTy.getSizeInBits()) {
+        //     Register Cast = MIRBuilder.buildBitcast(LocTy, Args[i].OrigRegs[0]).getReg(0);
+        //     ArgReg = Cast;
+        //   }
+        // }
         DelayedOutgoingRegAssignments.emplace_back([=, &Handler]() {
           Handler.assignValueToReg(ArgReg, VA.getLocReg(), VA, Flags);
         });
@@ -1003,6 +1051,8 @@ bool CallLowering::handleAssignments(ValueHandler &Handler,
         !IndirectParameterPassingHandled) {
       // Merge the split registers into the expected larger result vregs of
       // the original call.
+      //assert(LocTy != LLT::scalar(64));
+      //assert(OrigTy != LLT::vector(ElementCount::getFixed(4), 16));
       buildCopyFromRegs(MIRBuilder, Args[i].OrigRegs, Args[i].Regs, OrigTy,
                         LocTy, Args[i].Flags[0]);
     }

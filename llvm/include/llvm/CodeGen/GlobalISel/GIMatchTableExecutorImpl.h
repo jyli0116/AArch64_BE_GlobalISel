@@ -236,6 +236,7 @@ bool GIMatchTableExecutor::executeMatchTable(
       uint16_t UpperBound = readU16();
       uint32_t Default = readU32();
 
+      // assert(false && "2");
       assert(State.MIs[InsnID] != nullptr && "Used insn before defined");
       const int64_t Opcode = State.MIs[InsnID]->getOpcode();
 

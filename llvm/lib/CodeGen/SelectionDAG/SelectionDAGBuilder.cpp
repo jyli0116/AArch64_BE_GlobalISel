@@ -4867,6 +4867,7 @@ void SelectionDAGBuilder::visitLoadFromSwiftError(const LoadInst &I) {
 }
 
 void SelectionDAGBuilder::visitStore(const StoreInst &I) {
+  // assert(false);
   if (I.isAtomic())
     return visitAtomicStore(I);
 
@@ -4902,6 +4903,13 @@ void SelectionDAGBuilder::visitStore(const StoreInst &I) {
   SDValue Src = getValue(SrcV);
   SDValue Ptr = getValue(PtrV);
 
+  // EVT MemVT = ValueVTs[1];
+
+  // EVT SrcVT = Src.getValueType();
+  // assert(MemVT.getVectorNumElements() == 4);
+  // assert(MemVT.getScalarSizeInBits() == 32);
+  // assert(false && "is v4s32");
+
   SDValue Root = I.isVolatile() ? getRoot() : getMemoryRoot();
   SmallVector<SDValue, 4> Chains(std::min(MaxParallelChains, NumValues));
   SDLoc dl = getCurSDLoc();
@@ -4930,6 +4938,13 @@ void SelectionDAGBuilder::visitStore(const StoreInst &I) {
     SDValue Val = SDValue(Src.getNode(), Src.getResNo() + i);
     if (MemVTs[i] != ValueVTs[i])
       Val = DAG.getPtrExtOrTrunc(Val, dl, MemVTs[i]);
+
+    EVT ValTy = Val.getValueType();
+//    assert(ValTy.isVector());
+//    assert(ValTy.getVectorNumElements() == 4);
+//    assert(ValTy.getScalarSizeInBits() == 32);
+    // assert(false && "is v4i32");
+
     SDValue St =
         DAG.getStore(Root, dl, Val, Add, PtrInfo, Alignment, MMOFlags, AAInfo);
     Chains[ChainI] = St;
@@ -4937,6 +4952,8 @@ void SelectionDAGBuilder::visitStore(const StoreInst &I) {
 
   SDValue StoreNode = DAG.getNode(ISD::TokenFactor, dl, MVT::Other,
                                   ArrayRef(Chains.data(), ChainI));
+  //assert(StoreNode.getMemoryVT().getSizeInBits() == 128);
+  //assert(false && "size 128");
   setValue(&I, StoreNode);
   DAG.setRoot(StoreNode);
 }

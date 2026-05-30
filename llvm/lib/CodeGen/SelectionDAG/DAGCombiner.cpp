@@ -23658,6 +23658,7 @@ static SDValue foldToMaskedStore(StoreSDNode *Store, SelectionDAG &DAG,
 }
 
 SDValue DAGCombiner::visitSTORE(SDNode *N) {
+  // assert(false);
   StoreSDNode *ST  = cast<StoreSDNode>(N);
   SDValue Chain = ST->getChain();
   SDValue Value = ST->getValue();

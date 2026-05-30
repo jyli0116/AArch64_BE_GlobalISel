@@ -1431,6 +1431,7 @@ bool IRTranslator::translateLoad(const User &U, MachineIRBuilder &MIRBuilder) {
 }
 
 bool IRTranslator::translateStore(const User &U, MachineIRBuilder &MIRBuilder) {
+  // assert(false);
   const StoreInst &SI = cast<StoreInst>(U);
   if (DL->getTypeStoreSize(SI.getValueOperand()->getType()).isZero())
     return true;
