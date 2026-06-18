@@ -92,7 +92,8 @@ define void @trunc_v16i32_to_v16i8_in_loop(ptr %A, ptr %dst) {
 ; CHECK-GI-BE-LABEL: trunc_v16i32_to_v16i8_in_loop:
 ; CHECK-GI-BE:       // %bb.0: // %entry
 ; CHECK-GI-BE-NEXT:    adrp x8, .LCPI0_0
-; CHECK-GI-BE-NEXT:    ldr q0, [x8, :lo12:.LCPI0_0]
+; CHECK-GI-BE-NEXT:    add x8, x8, :lo12:.LCPI0_0
+; CHECK-GI-BE-NEXT:    ld1 { v0.16b }, [x8]
 ; CHECK-GI-BE-NEXT:    mov x8, xzr
 ; CHECK-GI-BE-NEXT:  .LBB0_1: // %loop
 ; CHECK-GI-BE-NEXT:    // =>This Inner Loop Header: Depth=1
@@ -275,7 +276,8 @@ define void @trunc_v8i32_to_v8i8_in_loop(ptr %A, ptr %dst) {
 ; CHECK-GI-BE-LABEL: trunc_v8i32_to_v8i8_in_loop:
 ; CHECK-GI-BE:       // %bb.0: // %entry
 ; CHECK-GI-BE-NEXT:    adrp x8, .LCPI2_0
-; CHECK-GI-BE-NEXT:    ldr q0, [x8, :lo12:.LCPI2_0]
+; CHECK-GI-BE-NEXT:    add x8, x8, :lo12:.LCPI2_0
+; CHECK-GI-BE-NEXT:    ld1 { v0.16b }, [x8]
 ; CHECK-GI-BE-NEXT:    mov x8, xzr
 ; CHECK-GI-BE-NEXT:  .LBB2_1: // %loop
 ; CHECK-GI-BE-NEXT:    // =>This Inner Loop Header: Depth=1
@@ -440,9 +442,11 @@ define void @trunc_v16i64_to_v16i8_in_loop(ptr %A, ptr %dst) {
 ; CHECK-GI-BE-LABEL: trunc_v16i64_to_v16i8_in_loop:
 ; CHECK-GI-BE:       // %bb.0: // %entry
 ; CHECK-GI-BE-NEXT:    adrp x8, .LCPI3_1
-; CHECK-GI-BE-NEXT:    adrp x9, .LCPI3_0
-; CHECK-GI-BE-NEXT:    ldr q0, [x8, :lo12:.LCPI3_1]
-; CHECK-GI-BE-NEXT:    ldr q1, [x9, :lo12:.LCPI3_0]
+; CHECK-GI-BE-NEXT:    add x8, x8, :lo12:.LCPI3_1
+; CHECK-GI-BE-NEXT:    ld1 { v0.16b }, [x8]
+; CHECK-GI-BE-NEXT:    adrp x8, .LCPI3_0
+; CHECK-GI-BE-NEXT:    add x8, x8, :lo12:.LCPI3_0
+; CHECK-GI-BE-NEXT:    ld1 { v1.16b }, [x8]
 ; CHECK-GI-BE-NEXT:    mov x8, xzr
 ; CHECK-GI-BE-NEXT:  .LBB3_1: // %loop
 ; CHECK-GI-BE-NEXT:    // =>This Inner Loop Header: Depth=1
@@ -604,7 +608,8 @@ define void @trunc_v8i64_to_v8i8_in_loop(ptr %A, ptr %dst) {
 ; CHECK-GI-BE-LABEL: trunc_v8i64_to_v8i8_in_loop:
 ; CHECK-GI-BE:       // %bb.0: // %entry
 ; CHECK-GI-BE-NEXT:    adrp x8, .LCPI4_0
-; CHECK-GI-BE-NEXT:    ldr q0, [x8, :lo12:.LCPI4_0]
+; CHECK-GI-BE-NEXT:    add x8, x8, :lo12:.LCPI4_0
+; CHECK-GI-BE-NEXT:    ld1 { v0.16b }, [x8]
 ; CHECK-GI-BE-NEXT:    mov x8, xzr
 ; CHECK-GI-BE-NEXT:  .LBB4_1: // %loop
 ; CHECK-GI-BE-NEXT:    // =>This Inner Loop Header: Depth=1

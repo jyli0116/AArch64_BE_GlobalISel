@@ -979,7 +979,7 @@ MachineLICMImpl::calcRegisterCost(const MachineInstr *MI, bool ConsiderSeen,
     if (RCCost == 0)
       continue;
     const int *PS = TRI->getRegClassPressureSets(RC);
-    for (; *PS != -1; ++PS)
+    for (; *PS != -1; ++PS) 
       Cost[*PS] += RCCost;
   }
   return Cost;

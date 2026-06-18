@@ -4191,27 +4191,62 @@ MachineInstr *AArch64InstructionSelector::emitLoadFromConstantPool(
   unsigned Opc;
   bool IsTiny = TM.getCodeModel() == CodeModel::Tiny;
   unsigned Size = MIRBuilder.getDataLayout().getTypeStoreSize(CPVal->getType());
-  switch (Size) {
-  case 16:
-    RC = &AArch64::FPR128RegClass;
-    Opc = IsTiny ? AArch64::LDRQl : AArch64::LDRQui;
-    break;
-  case 8:
-    RC = &AArch64::FPR64RegClass;
-    Opc = IsTiny ? AArch64::LDRDl : AArch64::LDRDui;
-    break;
-  case 4:
-    RC = &AArch64::FPR32RegClass;
-    Opc = IsTiny ? AArch64::LDRSl : AArch64::LDRSui;
-    break;
-  case 2:
-    RC = &AArch64::FPR16RegClass;
-    Opc = AArch64::LDRHui;
-    break;
-  default:
-    LLVM_DEBUG(dbgs() << "Could not load from constant pool of type "
-                      << *CPVal->getType());
-    return nullptr;
+  bool isVec = CPVal->getType()->isVectorTy();
+  bool isBE = MIRBuilder.getDataLayout().isBigEndian();
+
+  // maybe add is not tiny?
+  if (isVec && isBE) {
+    unsigned elementSize = CPVal->getType()->getScalarSizeInBits();
+    unsigned idx = Log2_32(elementSize/8);
+
+    switch (Size) {
+    case 16:
+      RC = &AArch64::FPR128RegClass;
+      static constexpr unsigned Opcodes128Bit[] = {
+        AArch64::LD1Onev16b, AArch64::LD1Onev8h, AArch64::LD1Onev4s,
+        AArch64::LD1Onev2d
+      };
+      Opc = Opcodes128Bit[idx];
+      break;
+    case 8:
+      RC = &AArch64::FPR64RegClass;
+      static constexpr unsigned Opcodes64Bit[] = {
+        AArch64::LD1Onev8b, AArch64::LD1Onev4h, AArch64::LD1Onev2s,
+        AArch64::LD1Onev1d
+      };
+      Opc = Opcodes64Bit[idx];
+      break;
+    default:
+      LLVM_DEBUG(dbgs() << "Could not load from constant pool of type "
+                        << *CPVal->getType());
+      return nullptr;
+    }
+
+  } else {
+
+    switch (Size) {
+    case 16:
+      RC = &AArch64::FPR128RegClass;
+      Opc = IsTiny ? AArch64::LDRQl : AArch64::LDRQui;
+      break;
+    case 8:
+      RC = &AArch64::FPR64RegClass;
+      Opc = IsTiny ? AArch64::LDRDl : AArch64::LDRDui;
+      break;
+    case 4:
+      RC = &AArch64::FPR32RegClass;
+      Opc = IsTiny ? AArch64::LDRSl : AArch64::LDRSui;
+      break;
+    case 2:
+      RC = &AArch64::FPR16RegClass;
+      Opc = AArch64::LDRHui;
+      break;
+    default:
+      LLVM_DEBUG(dbgs() << "Could not load from constant pool of type "
+                        << *CPVal->getType());
+      return nullptr;
+    }
+
   }
 
   MachineInstr *LoadMI = nullptr;
@@ -4221,15 +4256,32 @@ MachineInstr *AArch64InstructionSelector::emitLoadFromConstantPool(
     // Use load(literal) for tiny code model.
     LoadMI = &*MIRBuilder.buildInstr(Opc, {RC}, {}).addConstantPoolIndex(CPIdx);
   } else {
-    auto Adrp =
+    if (isBE && isVec) {
+
+      auto Addr = MIRBuilder.buildInstr(AArch64::MOVaddr, {&AArch64::GPR64RegClass}, {})
+                               .addConstantPoolIndex(
+                                CPIdx, 0, AArch64II::MO_PAGE)
+                               .addConstantPoolIndex(
+                                CPIdx, 0, AArch64II::MO_PAGEOFF | AArch64II::MO_NC);
+      // auto Addr =
+      //   MIRBuilder.buildInstr(AArch64::ADRP, {&AArch64::GPR64RegClass}, {})
+      //       .addConstantPoolIndex(CPIdx, 0, AArch64II::MO_PAGE);
+      // auto Add = MIRBuilder.buildInstr(AArch64::ADDXri, {&AArch64::GPR64RegClass}, {Addr})
+      //             .addConstantPoolIndex(CPIdx, 0, AArch64II::MO_PAGEOFF | AArch64II::MO_NC);
+
+      LoadMI = &*MIRBuilder.buildInstr(Opc, {RC}, {Addr})
+                .addConstantPoolIndex(
+                    CPIdx, 0, AArch64II::MO_PAGEOFF | AArch64II::MO_NC);
+      constrainSelectedInstRegOperands(*Addr, TII, TRI, RBI);
+    } else {
+      auto Addr =
         MIRBuilder.buildInstr(AArch64::ADRP, {&AArch64::GPR64RegClass}, {})
             .addConstantPoolIndex(CPIdx, 0, AArch64II::MO_PAGE);
-
-    LoadMI = &*MIRBuilder.buildInstr(Opc, {RC}, {Adrp})
-                   .addConstantPoolIndex(
-                       CPIdx, 0, AArch64II::MO_PAGEOFF | AArch64II::MO_NC);
-
-    constrainSelectedInstRegOperands(*Adrp, TII, TRI, RBI);
+      LoadMI = &*MIRBuilder.buildInstr(Opc, {RC}, {Addr})
+                .addConstantPoolIndex(
+                    CPIdx, 0, AArch64II::MO_PAGEOFF | AArch64II::MO_NC);
+      constrainSelectedInstRegOperands(*Addr, TII, TRI, RBI);
+    }
   }
 
   MachinePointerInfo PtrInfo = MachinePointerInfo::getConstantPool(MF);
